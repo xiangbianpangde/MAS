@@ -1,0 +1,97 @@
+name: Auto-Sync README
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  check-and-create-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MAS repository
+        uses: actions/checkout@v4
+        with:
+          path: mas
+
+      - name: Checkout MAS-Analysis repository
+        uses: actions/checkout@v4
+        with:
+          repository: xiangbianpangde/MAS-Analysis
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: mas-analysis
+
+      - name: Check if README exists in MAS
+        id: check-readme
+        run: |
+          if [ -f "mas/README.md" ]; then
+            echo "readme_exists=true" >> $GITHUB_OUTPUT
+            echo "README.md exists in MAS repository"
+          else
+            echo "readme_exists=false" >> $GITHUB_OUTPUT
+            echo "README.md does NOT exist in MAS repository"
+          fi
+
+      - name: Create README in MAS if missing
+        if: steps.check-readme.outputs.readme_exists == 'false'
+        run: |
+          cat > mas/README.md << 'EOF'
+          # AutoMAS: Eternal Evolution Engine
+
+          [![Powered By OpenClaw](https://img.shields.io/badge/Powered%20By-OpenClaw-blue)](https://openclaw.ai)
+          [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-green)](https://python.org)
+          [![Status: Autonomous](https://img.shields.io/badge/Status-Autonomous-success)](.)
+
+          ## 🎯 Core Philosophy: The Three Zero Principles
+
+          AutoMAS operates under the **Three Zero Principles**:
+
+          - **Zero Intervention** - The system runs without human interference
+          - **Zero Reporting** - No unnecessary status updates or noise
+          - **Zero Constraints** - Unbounded evolution and adaptation
+
+          ## 🔄 Core Mechanism: OODA Evolution Loop
+
+          AutoMAS implements a continuous **OODA Loop** (Observe-Orient-Decide-Act) for autonomous evolution:
+
+          ```mermaid
+          graph LR
+              O[Observe] --> OR[Orient]
+              OR --> D[Decide]
+              D --> A[Act]
+              A --> O
+          ```
+
+          ### Loop Stages
+
+          1. **Observe** - Monitor environment, gather data, detect changes
+          2. **Orient** - Analyze context, update mental models, assess situation
+          3. **Decide** - Select optimal action based on current understanding
+          4. **Act** - Execute decision, modify environment, create impact
+
+          ## ⚠️ Disclaimer
+
+          AutoMAS is an experimental autonomous system. Use at your own risk. The system operates with minimal human oversight and may make decisions that require human review.
+
+          ---
+
+          **Built with OpenClaw** - The AI Agent Framework
+          EOF
+
+      - name: Commit and push README to MAS if created
+        if: steps.check-readme.outputs.readme_exists == 'false'
+        run: |
+          cd mas
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "Auto-create README.md" || echo "No changes to commit"
+          git push
+
+      - name: Verify MAS-Analysis README exists
+        run: |
+          if [ -f "mas-analysis/README.md" ]; then
+            echo "MAS-Analysis README.md exists"
+          else
+            echo "Warning: MAS-Analysis README.md is missing"
+          fi
