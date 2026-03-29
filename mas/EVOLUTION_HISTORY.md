@@ -126,3 +126,17 @@ v5 code ready, benchmark blocked.
 
 ## Retry 05:11 UTC - Still failing
 API still 1004. Will continue periodic retries.
+
+## Iter 18 (v5 ensemble): Score 0.7905 - REGRESSION
+- reasoning: 0.8000 (v4: 1.0000) - WORSE
+- code: 0.6800 (same)
+- research: 1.0000 (v4: 0.8750) - BETTER
+- planning: 1.0000 (same)
+- debugging: 0.5000 (v4: 1.0000) - WORSE  
+- creative: 0.6000 (same)
+- Total: 0.7905 vs v4 best 0.8619
+
+CONCLUSION: Multi-candidate voting hurt reasoning/debugging. Reverted to v4.
+v5 research improvement (1.0 vs 0.875) worth noting for future.
+
+## API Status: Still 1004 at 07:11 UTC
