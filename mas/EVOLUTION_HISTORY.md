@@ -70,3 +70,18 @@ v4: Orchestrator → [Reasoner|MathVerifier] (reasoning)
 - Score: 0.8381
 - Dual-pass reasoning + per-task temperature + debugger 2-pass
 - Stable across runs (iter 6 matched iter 4 exactly)
+
+## Iter 7-9 Analysis
+- Iter 7: 0.8095 (v4, stable)
+- Iter 8: 0.7190 (v6, reasoning dropped to 0.8)
+- Iter 9: 0.6905 (v6 + retry, reasoning=0.4, creative=0.3 - regression)
+
+## Key Insight
+Retry mechanism (v6) hurt performance - more API calls = more variance.
+v4 without retry is the most stable architecture.
+
+## v7 Design (next)
+- Revert to v4 base (most stable)
+- Focus on code evaluation: try to actually execute generated code
+- Add consistency voter for hard reasoning tasks
+- Target: beat 0.8381
