@@ -1,10 +1,10 @@
 """
-MAS Architecture v6: Parallel Voting + Error Recovery + Enhanced Creative
-Key changes from v4:
-1. Parallel execution: for hard tasks, run 2 agents and pick the best response
-2. Error recovery: if API call fails, retry once with same agent
-3. Enhanced CreativeAgent: more expressive, better prompts
-4. Better code evaluation: attempt to execute code with test inputs
+MAS Architecture v4: Dual-Agent Verification + Enhanced Reasoning
+Key changes from v3:
+1. Split ReasoningAgent into Reasoner + MathVerifier (two-pass reasoning for hard math)
+2. Split DebuggerAgent into BugAnalyzer + FixGenerator (explicit bug identification before fix)
+3. Add self-reflection: agent checks own output before returning
+4. Enhanced temperature: 0.7 for creative/reasoning, 0.3 for code/debug
 """
 import os, json, time, requests, ast, re
 from typing import Dict, List, Any, Tuple
@@ -15,15 +15,6 @@ class MiniMaxClient:
         self.api_key = api_key or os.environ.get("MINIMAX_API_KEY", "")
         self.api_host = api_host or os.environ.get("MINIMAX_API_HOST", "https://api.minimaxi.com")
         self.model = "MiniMax-M2.7"
-    
-    def chat_with_retry(self, messages: List[Dict], model: str = None, max_tokens: int = 2048, temperature: float = 0.7, retries: int = 2) -> Dict:
-        for attempt in range(retries):
-            result = self.chat(messages, model, max_tokens, temperature)
-            if result.get("error") is None:
-                return result
-            if attempt < retries - 1:
-                time.sleep(2 ** attempt)  # exponential backoff
-        return result  # return last result even if error
     
     def chat(self, messages: List[Dict], model: str = None, max_tokens: int = 2048, temperature: float = 0.7) -> Dict:
         url = f"{self.api_host}/v1/text/chatcompletion_v2"
@@ -48,7 +39,7 @@ class Agent:
         if context:
             for c in context[-5:]: messages.append(c)
         messages.append({"role": "user", "content": task})
-        result = self.client.chat_with_retry(messages, temperature=temperature, max_tokens=max_tokens)
+        result = self.client.chat(messages, temperature=temperature, max_tokens=max_tokens)
         return {"agent": self.name, "task": task, "response": result["content"], "elapsed": result["elapsed"], "tokens": result["usage"].get("total_tokens", 0), "error": result.get("error")}
     
     def system_prompt(self) -> str:
@@ -61,91 +52,111 @@ class Agent:
 class ReasonerAgent(Agent):
     def system_prompt(self) -> str:
         return """You are Reasoner, expert in logical reasoning and mathematics.
-Show step-by-step reasoning first, then give the final answer.
-Format: [Step 1] ... [Answer] FINAL_ANSWER
-Nothing after the answer line."""
+IMPORTANT: Show your step-by-step reasoning first, then give the final answer at the end.
+Format:
+[Step 1] ...
+[Step 2] ...
+...
+[Answer] YOUR_FINAL_ANSWER_HERE
+Do not write anything after the answer line."""
 
 class MathVerifierAgent(Agent):
+    """NEW v4: Second-pass verification for hard math problems"""
     def system_prompt(self) -> str:
-        return """You are MathVerifier. Given a problem and answer, verify by recomputing independently.
-Output: VERIFIED or ERROR + correct answer + explanation."""
+        return """You are MathVerifier, expert mathematics validator.
+
+Given a math problem and an answer, you must:
+1. Re-read the problem carefully
+2. Verify the answer by re-computing independently
+3. State: VERIFIED (if correct) or ERROR (if wrong, explain why)
+
+If the answer is wrong, provide the correct answer.
+Be precise and show your verification steps."""
 
 class CoderAgent(Agent):
     def system_prompt(self) -> str:
         return """You are Coder, expert Python programmer.
-OUTPUT FORMAT:
-1. Brief explanation
-2. ```python\n[your code]\n```
-3. Test example showing it works
-Code must be syntactically correct and ready to run."""
+OUTPUT FORMAT (MUST FOLLOW):
+1. Brief explanation (1-2 sentences)
+2. Code block starting with ```python
+3. After code: "Test: [example usage showing it works]"
+
+The code must be syntactically correct."""
 
 class ResearcherAgent(Agent):
     def system_prompt(self) -> str:
         return """You are Researcher, expert in information synthesis.
-Be concise. Use bullet points. Cover all key aspects. Target 100-200 words.
-Include technical terms accurately."""
+Be concise. Use bullet points. Cover all key aspects. Target 100-200 words."""
 
 class PlannerAgent(Agent):
     def system_prompt(self) -> str:
         return """You are Planner, expert in project planning.
-Structure: Phase → Milestones → Weekly deliverables. Be specific and actionable.
-Include estimated time and deliverables for each phase."""
+Structure: Phase → Milestones → Weekly deliverables. Be specific, actionable."""
 
 class BugAnalyzerAgent(Agent):
+    """NEW v4: First pass - identifies the bug without suggesting fix yet"""
     def system_prompt(self) -> str:
         return """You are BugAnalyzer, expert at identifying software bugs.
 
-MUST:
-1. State the bug clearly (what, when, why)
-2. Show example: input → wrong output
+Given buggy code, you MUST:
+1. State the bug in one clear sentence (what goes wrong, when, why)
+2. Give a concrete example showing the bug behavior with the test input
+3. Do NOT suggest a fix yet
 
 Format:
-Bug: ...
-Example: [input] → [wrong output]"""
+Bug: [clear description]
+Example: [input] → [wrong output] because [reason]
+"""
 
 class FixGeneratorAgent(Agent):
+    """NEW v4: Second pass - provides the fix based on bug analysis"""
     def system_prompt(self) -> str:
-        return """You are FixGenerator. Given buggy code and bug analysis, provide the minimal fix.
+        return """You are FixGenerator, expert at writing correct code fixes.
 
-MUST:
-1. ```python with minimal fix (2-3 lines max)```
-2. Why it works (1 sentence)
-3. Verify with bug-triggering input"""
+Given buggy code AND a bug analysis, you MUST:
+1. Provide the minimal fix in a ```python``` code block
+2. Explain why this fix works (1 sentence)
+3. Verify: if you run the fixed code with the bug-triggering input, it should now produce correct output
+
+Output ONLY the fixed function/class, nothing else."""
 
 class DebuggerAgent(Agent):
-    def think(self, task: str, context: List[Dict] = None, temperature: float = 0.7, max_tokens: int = 4096) -> Dict:
+    """v4: Two-pass debugging using BugAnalyzer + FixGenerator"""
+    def think(self, task: str, context: List[Dict] = None, temperature: float = 0.7, max_tokens: int = 2048) -> Dict:
+        # Pass 1: Analyze the bug (concise)
         analyzer = BugAnalyzerAgent(self.client)
-        analysis = analyzer.think(task, temperature=0.3, max_tokens=1024)
-        task_with_analysis = task + "\n\n--- Bug Analysis ---\n" + analysis["response"] + "\n\nNow provide the minimal fix:"
+        analysis = analyzer.think(task, temperature=0.3)
+        
+        # Pass 2: Generate fix - allow more tokens for code output
+        task_with_analysis = task + "\n\n--- Bug Analysis ---\n" + analysis["response"] + "\n\nNow provide the fix. Keep the fix MINIMAL - only change 2-3 lines maximum:"
         fixer = FixGeneratorAgent(self.client)
-        fix = fixer.think(task_with_analysis, temperature=0.3, max_tokens=2048)
+        fix = fixer.think(task_with_analysis, temperature=0.3, max_tokens=4096)
+        
+        # Combine
         combined = f"【Bug Analysis】\n{analysis['response']}\n\n【Fix】\n{fix['response']}"
-        return {"agent": self.name, "task": task, "response": combined, "elapsed": analysis["elapsed"] + fix["elapsed"], "tokens": analysis.get("tokens", 0) + fix.get("tokens", 0), "error": analysis.get("error") or fix.get("error")}
+        
+        return {
+            "agent": self.name,
+            "task": task,
+            "response": combined,
+            "elapsed": analysis["elapsed"] + fix["elapsed"],
+            "tokens": analysis.get("tokens", 0) + fix.get("tokens", 0),
+            "error": analysis.get("error") or fix.get("error")
+        }
 
 class CreativeAgent(Agent):
     def system_prompt(self) -> str:
-        return """You are Creative, an imaginative and skilled creative writer.
-
-For poems:
-- Use vivid imagery and sensory details
-- Pay attention to rhythm and sound
-- Make every word count
-
-For character/creative content:
-- Be authentic, not generic
-- Match the requested tone and style
-- Add unique personality
-
-Do NOT be bland or formulaic. Surprise the reader."""
+        return """You are Creative, expert in creative writing.
+Be authentic and imaginative. Match the style requested."""
 
 class VerifierAgent(Agent):
     def system_prompt(self) -> str:
-        return """You are Verifier. Execute code mentally or report why it cannot be verified.
-Output: PASS + brief reason OR FAIL + reason."""
+        return """You are Verifier, expert code validator.
+Execute code mentally or explain why it cannot be verified. Report PASS/FAIL."""
 
-# === v6 Orchestrator ===
-class OrchestratorV6:
-    """v6: Parallel voting + retry + enhanced creative"""
+# === v4 Orchestrator ===
+class OrchestratorV4:
+    """v4: Dual-pass agents + per-task temperature + enhanced evaluation"""
     def __init__(self, client: MiniMaxClient):
         self.client = client
         self.reasoner = ReasonerAgent(client, "Reasoner", "logical reasoning")
@@ -167,10 +178,9 @@ class OrchestratorV6:
         return self.specialists.get(task.get("category", "reasoning"), self.reasoner)
     
     def get_temperature(self, category: str) -> float:
-        return 0.3 if category in ("code", "debugging") else 0.7
-    
-    def get_max_tokens(self, category: str) -> int:
-        return 4096 if category in ("debugging", "code") else 2048
+        if category in ("code", "debugging"):
+            return 0.3
+        return 0.7
     
     def solve(self, task: Dict) -> Dict:
         task_id = task["id"]
@@ -180,36 +190,55 @@ class OrchestratorV6:
         
         agent = self.route(task)
         temp = self.get_temperature(category)
-        max_tok = self.get_max_tokens(category)
+        max_tok = 4096 if category in ("debugging", "code") else 2048
         result = agent.think(task["prompt"], temperature=temp, max_tokens=max_tok)
         
-        # Two-pass for hard reasoning
+        # v4: Two-pass for hard math tasks
         if category == "reasoning" and task.get("difficulty") == "hard":
-            v_result = self.math_verifier.think(f"Problem: {task['prompt']}\n\nAnswer: {result['response']}", temperature=0.3)
-            result["response"] += f"\n\n【Math Verification】\n{v_result['response']}"
-            result["elapsed"] += v_result["elapsed"]
-            result["tokens"] += v_result.get("tokens", 0)
+            verifier_result = self.math_verifier.think(
+                f"Problem: {task['prompt']}\n\nAnswer: {result['response']}",
+                temperature=0.3
+            )
+            result["response"] += f"\n\n【Math Verification】\n{verifier_result['response']}"
+            result["elapsed"] += verifier_result["elapsed"]
+            result["tokens"] += verifier_result.get("tokens", 0)
+        
+        # Code verification
+        if category == "code":
+            code = agent.extract_code(result["response"])
+            try:
+                ast.parse(code)
+                result["syntax_ok"] = True
+            except SyntaxError:
+                result["syntax_ok"] = False
+        
+        # Debug verification
+        if category == "debugging":
+            has_identify = any(kw in result["response"].lower() for kw in ["bug:", "bug is", "问题", "错误"])
+            has_fix = "```python" in result["response"]
+            result["has_bug_id"] = has_identify
+            result["has_fix"] = has_fix
         
         elapsed = time.time() - start
-        result["elapsed"] = elapsed
-        self.stats["total_tokens"] += result.get("tokens", 0)
+        tokens = result.get("tokens", 0)
+        self.stats["total_tokens"] += tokens
         self.stats["total_time"] += elapsed
         
         return {
             "task_id": task_id, "category": category, "agent": agent.name,
-            "response": result["response"], "elapsed": elapsed, "tokens": result.get("tokens", 0),
+            "response": result["response"], "elapsed": elapsed, "tokens": tokens,
             "error": result.get("error")
         }
 
-def run_single_task(orchestrator, task):
+def run_single_task(orchestrator: OrchestratorV4, task: Dict) -> Dict:
     return orchestrator.solve(task)
 
-def run_benchmark(orchestrator, tasks, output_path):
+def run_benchmark(orchestrator: OrchestratorV4, tasks: List[Dict], output_path: str) -> Dict:
     from mas.benchmarks.evaluator import Evaluator
     evaluator = Evaluator()
     
     print(f"\n{'='*60}")
-    print(f"MAS v6 Benchmark - {len(tasks)} tasks (Parallel Voting + Retry)")
+    print(f"MAS v4 Benchmark - {len(tasks)} tasks (Dual-Pass + Per-Task Temp)")
     print(f"{'='*60}\n")
     
     for i, task in enumerate(tasks):
@@ -222,14 +251,15 @@ def run_benchmark(orchestrator, tasks, output_path):
     summary = evaluator.get_summary()
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:
-        json.dump({"timestamp": datetime.now().isoformat(), "architecture": "v6_parallel_retry", "summary": summary}, f, indent=2, ensure_ascii=False)
+        json.dump({"timestamp": datetime.now().isoformat(), "architecture": "v4_dual_pass", "summary": summary}, f, indent=2, ensure_ascii=False)
     
     print(f"\n{'='*60}")
-    print(f"BENCHMARK COMPLETE - v6")
+    print(f"BENCHMARK COMPLETE - v4")
     print(f"Total Score: {summary['avg_score']:.4f}")
     print(f"Total Time: {summary['total_time']:.1f}s")
     for cat, data in summary.get("category_summary", {}).items():
         print(f"  {cat}: {data['avg_score']:.4f}")
     return summary
 
-Orchestrator = OrchestratorV6
+# Alias
+Orchestrator = OrchestratorV4
