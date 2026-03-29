@@ -34,12 +34,12 @@ class Agent:
     def __init__(self, client: MiniMaxClient, name: str = "", role: str = ""):
         self.name = name; self.role = role; self.client = client; self.memory = []
     
-    def think(self, task: str, context: List[Dict] = None, temperature: float = 0.7) -> Dict:
+    def think(self, task: str, context: List[Dict] = None, temperature: float = 0.7, max_tokens: int = 2048) -> Dict:
         messages = [{"role": "system", "content": self.system_prompt()}]
         if context:
             for c in context[-5:]: messages.append(c)
         messages.append({"role": "user", "content": task})
-        result = self.client.chat(messages, temperature=temperature)
+        result = self.client.chat(messages, temperature=temperature, max_tokens=max_tokens)
         return {"agent": self.name, "task": task, "response": result["content"], "elapsed": result["elapsed"], "tokens": result["usage"].get("total_tokens", 0), "error": result.get("error")}
     
     def system_prompt(self) -> str:
@@ -122,15 +122,15 @@ Output ONLY the fixed function/class, nothing else."""
 
 class DebuggerAgent(Agent):
     """v4: Two-pass debugging using BugAnalyzer + FixGenerator"""
-    def think(self, task: str, context: List[Dict] = None, temperature: float = 0.7) -> Dict:
-        # Pass 1: Analyze the bug
+    def think(self, task: str, context: List[Dict] = None, temperature: float = 0.7, max_tokens: int = 2048) -> Dict:
+        # Pass 1: Analyze the bug (concise)
         analyzer = BugAnalyzerAgent(self.client)
         analysis = analyzer.think(task, temperature=0.3)
         
-        # Pass 2: Generate fix based on analysis
-        task_with_analysis = task + "\n\n--- Bug Analysis ---\n" + analysis["response"] + "\n\nNow provide the fix:"
+        # Pass 2: Generate fix - allow more tokens for code output
+        task_with_analysis = task + "\n\n--- Bug Analysis ---\n" + analysis["response"] + "\n\nNow provide the fix. Keep the fix MINIMAL - only change 2-3 lines maximum:"
         fixer = FixGeneratorAgent(self.client)
-        fix = fixer.think(task_with_analysis, temperature=0.3)
+        fix = fixer.think(task_with_analysis, temperature=0.3, max_tokens=4096)
         
         # Combine
         combined = f"【Bug Analysis】\n{analysis['response']}\n\n【Fix】\n{fix['response']}"
@@ -190,7 +190,8 @@ class OrchestratorV4:
         
         agent = self.route(task)
         temp = self.get_temperature(category)
-        result = agent.think(task["prompt"], temperature=temp)
+        max_tok = 4096 if category in ("debugging", "code") else 2048
+        result = agent.think(task["prompt"], temperature=temp, max_tokens=max_tok)
         
         # v4: Two-pass for hard math tasks
         if category == "reasoning" and task.get("difficulty") == "hard":
