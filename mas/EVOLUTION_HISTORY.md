@@ -85,3 +85,11 @@ v4 without retry is the most stable architecture.
 - Focus on code evaluation: try to actually execute generated code
 - Add consistency voter for hard reasoning tasks
 - Target: beat 0.8381
+
+## Iter 12-13
+- Iter 12: 0.8333 (reasoning dropped to 0.8, debugging back to 1.0)
+- Iter 13: **0.8619** NEW BEST (reasoning=1.0, debugging=1.0)
+
+Architecture v4 (Dual-Pass + Per-Task Temp) is optimal. Performance variance is inherent to LLM API.
+
+Score history summary: best=0.8619, latest=0.8619, avg of last 5=0.7939
