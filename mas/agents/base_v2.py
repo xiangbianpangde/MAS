@@ -37,7 +37,7 @@ class MiniMaxClient:
             return {"content": "", "usage": {"total_tokens": 0}, "elapsed": time.time() - start, "error": str(e)}
 
 class Agent:
-    def __init__(self, client: MiniMaxClient, name: str = "", role: str = ""):
+    def __init__(self, name: str, role: str, client: MiniMaxClient):
         self.name = name
         self.role = role
         self.client = client
@@ -278,7 +278,3 @@ def run_benchmark(orchestrator: OrchestratorV2, tasks: List[Dict], output_path: 
 
 if __name__ == "__main__":
     print("MAS v2 - Tree + Verifier Architecture")
-
-# Backward compatibility alias
-Orchestrator = OrchestratorV2
-
