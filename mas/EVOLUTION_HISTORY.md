@@ -140,3 +140,27 @@ CONCLUSION: Multi-candidate voting hurt reasoning/debugging. Reverted to v4.
 v5 research improvement (1.0 vs 0.875) worth noting for future.
 
 ## API Status: Still 1004 at 07:11 UTC
+
+## Iter 18: Score 0.7905 (v5 - REGRESSION)
+v5 Multi-Candidate Ensemble FAILED - worse than v4 (0.8619).
+- reasoning: 0.8000 (v4: 1.0000) - DROPPED
+- code: 0.6800 (v4: 0.6800) - same
+- research: 1.0000 (v4: 0.8750) - IMPROVED
+- planning: 1.0000 (v4: 1.0000) - same
+- debugging: 0.5000 (v4: 1.0000) - DROPPED
+- creative: 0.6000 (v4: 0.6000) - same
+Total: 0.7905 vs v4's 0.8619 (-8.3%)
+
+Root cause: Multi-candidate ensemble added API call volume (3x for code/creative),
+introducing more variance. Hard reasoning tasks got worse with more calls.
+Debugging also regressed - dual-pass was sufficient.
+
+Conclusion: v5 changes hurt more than helped. Reverting to v4.
+API rate-limited after v5 run (excessive calls).
+
+## v6 Design (next): Hybrid Approach
+Keep v4 as stable base. Only change ONE thing at a time.
+Focus: Fix code (0.68) ONLY - keep everything else v4.
+- Add syntax validation + auto-fix for code (lighter than full ensemble)
+- Do NOT change reasoning, research, planning, debugging, creative
+- Single architectural change to isolate impact
