@@ -7,7 +7,7 @@
 | v1 | Tree Orchestrator | **0.7619** | 1.00 | 0.56 | 1.00 | 1.00 | 0.00 | 0.60 |
 | v2 | Tree + Verifier | 0.6762 | 0.40 | 0.68 | 1.00 | 1.00 | 0.60 | 0.30 |
 | v3 | v2 + temp=0.7 | 0.7476 | 0.80 | 0.68 | 0.875 | 1.00 | 0.30 | 0.60 |
-| v4 | Dual-Pass + Temp Per-Task | TBD | TBD | TBD | TBD | TBD | TBD | TBD |
+| v4 | Dual-Pass + Temp Per-Task | **0.8381** | 1.00 | 0.68 | 1.00 | 1.00 | 0.50 | 0.60 |
 
 ## Key Learnings
 
