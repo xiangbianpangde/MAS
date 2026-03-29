@@ -261,4 +261,4 @@ def run_benchmark(orchestrator: OrchestratorV4, tasks: List[Dict], output_path: 
     return summary
 
 # Alias
-OrchestratorV4.Orchestrator = OrchestratorV4
+Orchestrator = OrchestratorV4

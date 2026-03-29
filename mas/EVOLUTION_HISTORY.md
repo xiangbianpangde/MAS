@@ -52,3 +52,11 @@ v4: Orchestrator → [Reasoner|MathVerifier] (reasoning)
 - If v4 ≤ 0.7619: consider swarm architecture (multiple orchestrators)
 - GPU integration when driver issue is resolved
 - Add more benchmark tasks (currently 21, expand to 50+)
+
+## v4 → v5 Analysis
+- v4 scored 0.8381 (new best, beating v1's 0.7619 by +10%)
+- Key win: reasoning 1.00 (dual-pass math verification worked perfectly)
+- Remaining issue: debug_001 scored 0.00 due to response truncation (max_tokens=2048)
+- debug_002 scored 1.00 (fix made it through)
+- Fix: increased max_tokens to 4096 for debugging tasks
+
