@@ -82,6 +82,7 @@ class Evaluator:
             return scoring.get("wrong", 0.0), "reason_005: no valid answer (expected ~55)"
         
         # Extract integer from response
+        numbers = re.findall(r'-?\d+', response)
         if not numbers:
             return scoring.get("wrong", 0.0), "No number found in response"
         
