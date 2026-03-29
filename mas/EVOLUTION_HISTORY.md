@@ -60,3 +60,13 @@ v4: Orchestrator → [Reasoner|MathVerifier] (reasoning)
 - debug_002 scored 1.00 (fix made it through)
 - Fix: increased max_tokens to 4096 for debugging tasks
 
+
+## Iter 8 (v6): Score 0.719 - Regression
+- v6 architecture changes (retry, enhanced creative) did NOT help
+- Reasoning: 0.80, Code: 0.68, Research: 0.75, Planning: 0.83, Debugging: 0.50, Creative: 0.60
+- Conclusion: v6 changes introduced noise. Best remains v4 baseline (iter 4 & 6: 0.8381)
+
+## Best Architecture: v4 (iter 4 & 6)
+- Score: 0.8381
+- Dual-pass reasoning + per-task temperature + debugger 2-pass
+- Stable across runs (iter 6 matched iter 4 exactly)
