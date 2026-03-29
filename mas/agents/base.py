@@ -24,7 +24,7 @@ class MiniMaxClient:
     def chat(self, messages: List[Dict], model: str = None, max_tokens: int = 2048) -> Dict:
         url = f"{self.api_host}/v1/text/chatcompletion_v2"
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        payload = {"model": model or self.model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.3}
+        payload = {"model": model or self.model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.7}
         
         start = time.time()
         try:
