@@ -106,3 +106,16 @@ Architecture goal: Fix code (0.68) and creative (0.60) weak spots.
 - Creative: 3-agent ensemble (Creative, CreativeV2, CreativeV3) at temp 0.7/0.9/1.0 + ranker
 - Research: Cross-validation with Researcher + ResearcherV2 (dual perspective)
 - Keep dual-pass reasoning and debugging (both at 1.0000)
+
+## API FAILURE - 2026-03-30 04:20 UTC
+MiniMax API returning 1004 login fail after 17 successful iterations.
+API key may have expired or hit rate limit.
+v5 code committed but benchmark could not run.
+Status: BLOCKED - will retry in next heartbeat cycle.
+
+## BLOCKED - API Key Invalid (1004)
+API returned 1004 error after 17 successful iterations.
+Authentication attempts tried: Bearer <key>, Bearer api.<key>, <key> alone.
+All failed with "login fail: Please carry the API secret key".
+Likely cause: API key revoked/expired or account issue on MiniMax portal.
+v5 code ready in agents/base_v5current.py - will retry when API recovers.
