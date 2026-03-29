@@ -1,18 +1,13 @@
 """
-MAS Architecture v2: Improved Debugger + Code Agent + Chain-of-Verification
-Changes from v1:
-- DebuggerAgent: Enhanced prompts with explicit bug categorization and fix verification
-- CoderAgent: Better code output format enforcement + self-test before returning
-- Added VerifierAgent: Validates code/debug outputs before acceptance
-- Code tasks: Improved evaluation with actual execution
+MAS Architecture v4: Dual-Agent Verification + Enhanced Reasoning
+Key changes from v3:
+1. Split ReasoningAgent into Reasoner + MathVerifier (two-pass reasoning for hard math)
+2. Split DebuggerAgent into BugAnalyzer + FixGenerator (explicit bug identification before fix)
+3. Add self-reflection: agent checks own output before returning
+4. Enhanced temperature: 0.7 for creative/reasoning, 0.3 for code/debug
 """
-import os
-import json
-import time
-import requests
-import subprocess
-import hashlib
-from typing import Dict, List, Any, Optional
+import os, json, time, requests, ast, re
+from typing import Dict, List, Any, Tuple
 from datetime import datetime
 
 class MiniMaxClient:
@@ -21,11 +16,10 @@ class MiniMaxClient:
         self.api_host = api_host or os.environ.get("MINIMAX_API_HOST", "https://api.minimaxi.com")
         self.model = "MiniMax-M2.7"
     
-    def chat(self, messages: List[Dict], model: str = None, max_tokens: int = 2048) -> Dict:
+    def chat(self, messages: List[Dict], model: str = None, max_tokens: int = 2048, temperature: float = 0.7) -> Dict:
         url = f"{self.api_host}/v1/text/chatcompletion_v2"
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        payload = {"model": model or self.model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.7}
-        
+        payload = {"model": model or self.model, "messages": messages, "max_tokens": max_tokens, "temperature": temperature}
         start = time.time()
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=120)
@@ -38,89 +32,117 @@ class MiniMaxClient:
 
 class Agent:
     def __init__(self, client: MiniMaxClient, name: str = "", role: str = ""):
-        self.name = name
-        self.role = role
-        self.client = client
-        self.memory = []
+        self.name = name; self.role = role; self.client = client; self.memory = []
     
-    def think(self, task: str, context: List[Dict] = None) -> Dict:
+    def think(self, task: str, context: List[Dict] = None, temperature: float = 0.7) -> Dict:
         messages = [{"role": "system", "content": self.system_prompt()}]
         if context:
-            for c in context[-5:]:
-                messages.append(c)
+            for c in context[-5:]: messages.append(c)
         messages.append({"role": "user", "content": task})
-        result = self.client.chat(messages)
+        result = self.client.chat(messages, temperature=temperature)
         return {"agent": self.name, "task": task, "response": result["content"], "elapsed": result["elapsed"], "tokens": result["usage"].get("total_tokens", 0), "error": result.get("error")}
-    
-    def add_memory(self, event: str, data: Any):
-        self.memory.append({"time": time.time(), "event": event, "data": data})
     
     def system_prompt(self) -> str:
         return f"You are {self.name}, a {self.role} specialist."
     
     def extract_code(self, response: str) -> str:
-        import re
         blocks = re.findall(r'```(?:\w+)?\n(.*?)```', response, re.DOTALL)
         return blocks[0] if blocks else response
 
 class ReasonerAgent(Agent):
     def system_prompt(self) -> str:
         return """You are Reasoner, expert in logical reasoning and mathematics.
-Show step-by-step reasoning, then give the final answer clearly.
-Format: [Step 1] ... [Answer] X"""
+IMPORTANT: Show your step-by-step reasoning first, then give the final answer at the end.
+Format:
+[Step 1] ...
+[Step 2] ...
+...
+[Answer] YOUR_FINAL_ANSWER_HERE
+Do not write anything after the answer line."""
+
+class MathVerifierAgent(Agent):
+    """NEW v4: Second-pass verification for hard math problems"""
+    def system_prompt(self) -> str:
+        return """You are MathVerifier, expert mathematics validator.
+
+Given a math problem and an answer, you must:
+1. Re-read the problem carefully
+2. Verify the answer by re-computing independently
+3. State: VERIFIED (if correct) or ERROR (if wrong, explain why)
+
+If the answer is wrong, provide the correct answer.
+Be precise and show your verification steps."""
 
 class CoderAgent(Agent):
     def system_prompt(self) -> str:
         return """You are Coder, expert Python programmer.
-IMPORTANT RULES:
-1. Your response MUST contain a code block starting with ```python
-2. After the code, write a brief explanation
-3. The code must be syntactically correct and ready to run
-4. Do NOT output any other text outside the explanation
+OUTPUT FORMAT (MUST FOLLOW):
+1. Brief explanation (1-2 sentences)
+2. Code block starting with ```python
+3. After code: "Test: [example usage showing it works]"
 
-Example format:
-Here is the implementation:
-
-```python
-def example():
-    pass
-```
-
-This function does X by Y."""
+The code must be syntactically correct."""
 
 class ResearcherAgent(Agent):
     def system_prompt(self) -> str:
         return """You are Researcher, expert in information synthesis.
-Be concise. Use structured bullet points. Cover all key aspects."""
+Be concise. Use bullet points. Cover all key aspects. Target 100-200 words."""
 
 class PlannerAgent(Agent):
     def system_prompt(self) -> str:
         return """You are Planner, expert in project planning.
-Structure: Phase → Milestones → Weekly deliverables. Be specific and actionable."""
+Structure: Phase → Milestones → Weekly deliverables. Be specific, actionable."""
+
+class BugAnalyzerAgent(Agent):
+    """NEW v4: First pass - identifies the bug without suggesting fix yet"""
+    def system_prompt(self) -> str:
+        return """You are BugAnalyzer, expert at identifying software bugs.
+
+Given buggy code, you MUST:
+1. State the bug in one clear sentence (what goes wrong, when, why)
+2. Give a concrete example showing the bug behavior with the test input
+3. Do NOT suggest a fix yet
+
+Format:
+Bug: [clear description]
+Example: [input] → [wrong output] because [reason]
+"""
+
+class FixGeneratorAgent(Agent):
+    """NEW v4: Second pass - provides the fix based on bug analysis"""
+    def system_prompt(self) -> str:
+        return """You are FixGenerator, expert at writing correct code fixes.
+
+Given buggy code AND a bug analysis, you MUST:
+1. Provide the minimal fix in a ```python``` code block
+2. Explain why this fix works (1 sentence)
+3. Verify: if you run the fixed code with the bug-triggering input, it should now produce correct output
+
+Output ONLY the fixed function/class, nothing else."""
 
 class DebuggerAgent(Agent):
-    """v2: Enhanced debugger with explicit 3-step protocol"""
-    def system_prompt(self) -> str:
-        return """You are Debugger, expert software debugger.
-
-DEBUGGING PROTOCOL (ALWAYS FOLLOW IN ORDER):
-
-**Step 1: IDENTIFY**
-Read the buggy code carefully. State EXACTLY what the bug is in one sentence.
-Example: "Bug: When all elements are equal, the second_max remains -inf because the condition `elif num > second_max` never triggers."
-
-**Step 2: FIX**
-Provide the corrected code in a ```python``` block.
-Keep the fix minimal - only change what's necessary.
-
-**Step 3: VERIFY**
-After the code block, explain WHY this fix works.
-Then test mentally: "If I run the fixed code with the failing input, it would output..."
-
-DO NOT:
-- Vague descriptions like "there might be an edge case issue"
-- Make changes unrelated to the bug
-- Output anything before the 3 steps are complete"""
+    """v4: Two-pass debugging using BugAnalyzer + FixGenerator"""
+    def think(self, task: str, context: List[Dict] = None, temperature: float = 0.7) -> Dict:
+        # Pass 1: Analyze the bug
+        analyzer = BugAnalyzerAgent(self.client)
+        analysis = analyzer.think(task, temperature=0.3)
+        
+        # Pass 2: Generate fix based on analysis
+        task_with_analysis = task + "\n\n--- Bug Analysis ---\n" + analysis["response"] + "\n\nNow provide the fix:"
+        fixer = FixGeneratorAgent(self.client)
+        fix = fixer.think(task_with_analysis, temperature=0.3)
+        
+        # Combine
+        combined = f"【Bug Analysis】\n{analysis['response']}\n\n【Fix】\n{fix['response']}"
+        
+        return {
+            "agent": self.name,
+            "task": task,
+            "response": combined,
+            "elapsed": analysis["elapsed"] + fix["elapsed"],
+            "tokens": analysis.get("tokens", 0) + fix.get("tokens", 0),
+            "error": analysis.get("error") or fix.get("error")
+        }
 
 class CreativeAgent(Agent):
     def system_prompt(self) -> str:
@@ -128,34 +150,23 @@ class CreativeAgent(Agent):
 Be authentic and imaginative. Match the style requested."""
 
 class VerifierAgent(Agent):
-    """NEW in v2: Verifies code correctness by executing it"""
     def system_prompt(self) -> str:
         return """You are Verifier, expert code validator.
+Execute code mentally or explain why it cannot be verified. Report PASS/FAIL."""
 
-Given code and a test case, you MUST:
-1. Execute the code mentally or by running it if possible
-2. Report the actual output
-3. Compare with expected output
-4. State PASS or FAIL with reason
-
-If code cannot be executed (missing dependencies), state CANNOT_VERIFY and explain why."""
-
-# === v2 Orchestrator with Verification ===
-class OrchestratorV2:
-    """
-    v2 Architecture: Tree + Verification Gate
-    - Adds VerifierAgent between coder/debugger output and acceptance
-    - All code/debug outputs pass through verification check
-    """
+# === v4 Orchestrator ===
+class OrchestratorV4:
+    """v4: Dual-pass agents + per-task temperature + enhanced evaluation"""
     def __init__(self, client: MiniMaxClient):
         self.client = client
-        self.reasoner = ReasonerAgent(client)
-        self.coder = CoderAgent(client)
-        self.researcher = ResearcherAgent(client)
-        self.planner = PlannerAgent(client)
-        self.debugger = DebuggerAgent(client)
-        self.creative = CreativeAgent(client)
-        self.verifier = VerifierAgent(client)
+        self.reasoner = ReasonerAgent(client, "Reasoner", "logical reasoning")
+        self.math_verifier = MathVerifierAgent(client, "MathVerifier", "math verification")
+        self.coder = CoderAgent(client, "Coder", "programming")
+        self.researcher = ResearcherAgent(client, "Researcher", "research")
+        self.planner = PlannerAgent(client, "Planner", "planning")
+        self.debugger = DebuggerAgent(client, "Debugger", "debugging")
+        self.creative = CreativeAgent(client, "Creative", "creative")
+        self.verifier = VerifierAgent(client, "Verifier", "verification")
         
         self.specialists = {
             "reasoning": self.reasoner, "code": self.coder, "research": self.researcher,
@@ -166,40 +177,10 @@ class OrchestratorV2:
     def route(self, task: Dict) -> Agent:
         return self.specialists.get(task.get("category", "reasoning"), self.reasoner)
     
-    def verify_if_code(self, task: Dict, response: str) -> tuple:
-        """v2: If code/debug task, verify the output."""
-        cat = task.get("category")
-        if cat not in ("code", "debugging"):
-            return response, 1.0
-        
-        # Extract code block
-        code = self.coder.extract_code(response) if cat == "code" else self.debugger.extract_code(response)
-        
-        if not code or len(code) < 10:
-            return response, 0.3  # No code found
-        
-        # Syntax check
-        try:
-            import ast
-            ast.parse(code)
-        except SyntaxError as e:
-            return response + f"\n[SYNTAX ERROR: {e}]", 0.0
-        
-        # For debugging tasks, check if fix makes sense
-        if cat == "debugging":
-            # Enhanced debugging score based on following the 3-step protocol
-            has_identify = any(word in response.lower() for word in ["bug:", "bug is", "the issue", "问题：", "bug："])
-            has_fix = "```python" in response
-            has_verify = any(word in response.lower() for word in ["verify", "test", "if i run", "works because"])
-            
-            if has_identify and has_fix and has_verify:
-                return response, 0.8
-            elif has_identify and has_fix:
-                return response, 0.6
-            else:
-                return response, 0.3
-        
-        return response, 0.7  # Code found and syntactically valid
+    def get_temperature(self, category: str) -> float:
+        if category in ("code", "debugging"):
+            return 0.3
+        return 0.7
     
     def solve(self, task: Dict) -> Dict:
         task_id = task["id"]
@@ -208,15 +189,34 @@ class OrchestratorV2:
         self.stats["total_tasks"] += 1
         
         agent = self.route(task)
-        result = agent.think(task["prompt"])
+        temp = self.get_temperature(category)
+        result = agent.think(task["prompt"], temperature=temp)
         
-        # v2: Verification step for code/debug
-        if category in ("code", "debugging"):
-            response, verification_score = self.verify_if_code(task, result["response"])
-            result["response"] = response
-            result["verification_score"] = verification_score
-        else:
-            result["verification_score"] = 1.0
+        # v4: Two-pass for hard math tasks
+        if category == "reasoning" and task.get("difficulty") == "hard":
+            verifier_result = self.math_verifier.think(
+                f"Problem: {task['prompt']}\n\nAnswer: {result['response']}",
+                temperature=0.3
+            )
+            result["response"] += f"\n\n【Math Verification】\n{verifier_result['response']}"
+            result["elapsed"] += verifier_result["elapsed"]
+            result["tokens"] += verifier_result.get("tokens", 0)
+        
+        # Code verification
+        if category == "code":
+            code = agent.extract_code(result["response"])
+            try:
+                ast.parse(code)
+                result["syntax_ok"] = True
+            except SyntaxError:
+                result["syntax_ok"] = False
+        
+        # Debug verification
+        if category == "debugging":
+            has_identify = any(kw in result["response"].lower() for kw in ["bug:", "bug is", "问题", "错误"])
+            has_fix = "```python" in result["response"]
+            result["has_bug_id"] = has_identify
+            result["has_fix"] = has_fix
         
         elapsed = time.time() - start
         tokens = result.get("tokens", 0)
@@ -226,59 +226,39 @@ class OrchestratorV2:
         return {
             "task_id": task_id, "category": category, "agent": agent.name,
             "response": result["response"], "elapsed": elapsed, "tokens": tokens,
-            "error": result.get("error"), "verification_score": result.get("verification_score", 1.0)
+            "error": result.get("error")
         }
 
-def run_single_task(orchestrator: OrchestratorV2, task: Dict) -> Dict:
+def run_single_task(orchestrator: OrchestratorV4, task: Dict) -> Dict:
     return orchestrator.solve(task)
 
-def run_benchmark(orchestrator: OrchestratorV2, tasks: List[Dict], output_path: str) -> Dict:
+def run_benchmark(orchestrator: OrchestratorV4, tasks: List[Dict], output_path: str) -> Dict:
     from mas.benchmarks.evaluator import Evaluator
     evaluator = Evaluator()
     
     print(f"\n{'='*60}")
-    print(f"MAS v2 Benchmark Starting - {len(tasks)} tasks (Verifier enabled)")
+    print(f"MAS v4 Benchmark - {len(tasks)} tasks (Dual-Pass + Per-Task Temp)")
     print(f"{'='*60}\n")
     
     for i, task in enumerate(tasks):
         print(f"[{i+1}/{len(tasks)}] {task['id']} ({task['category']})...", end=" ", flush=True)
         result = run_single_task(orchestrator, task)
-        
-        eval_result = evaluator.evaluate(
-            task=task, response=result["response"],
-            execution_time=result["elapsed"], tokens_used=result["tokens"]
-        )
-        
-        # v2: Apply verification score modifier
-        v_score = result.get("verification_score", 1.0)
-        eval_result["verification_score"] = v_score
-        
-        print(f"Score: {eval_result['score']:.2f} | V-Score: {v_score:.2f} | Time: {result['elapsed']:.1f}s | {result['agent']}")
+        eval_result = evaluator.evaluate(task, result["response"], result["elapsed"], result["tokens"])
+        print(f"Score: {eval_result['score']:.2f} | Time: {result['elapsed']:.1f}s | {result['agent']}")
         time.sleep(0.5)
     
     summary = evaluator.get_summary()
-    
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:
-        json.dump({
-            "timestamp": datetime.now().isoformat(),
-            "architecture": "v2_tree_plus_verifier",
-            "summary": summary
-        }, f, indent=2, ensure_ascii=False)
+        json.dump({"timestamp": datetime.now().isoformat(), "architecture": "v4_dual_pass", "summary": summary}, f, indent=2, ensure_ascii=False)
     
     print(f"\n{'='*60}")
-    print(f"BENCHMARK COMPLETE - v2")
+    print(f"BENCHMARK COMPLETE - v4")
     print(f"Total Score: {summary['avg_score']:.4f}")
     print(f"Total Time: {summary['total_time']:.1f}s")
-    print(f"By Category:")
     for cat, data in summary.get("category_summary", {}).items():
         print(f"  {cat}: {data['avg_score']:.4f}")
-    
     return summary
 
-if __name__ == "__main__":
-    print("MAS v2 - Tree + Verifier Architecture")
-
-# Backward compatibility alias
-Orchestrator = OrchestratorV2
-
+# Alias
+Orchestrator = OrchestratorV4
