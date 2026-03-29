@@ -119,3 +119,7 @@ Authentication attempts tried: Bearer <key>, Bearer api.<key>, <key> alone.
 All failed with "login fail: Please carry the API secret key".
 Likely cause: API key revoked/expired or account issue on MiniMax portal.
 v5 code ready in agents/base_v5current.py - will retry when API recovers.
+
+## Retry 04:22 UTC - Still failing 1004
+API continues to return 1004. No new development possible until API recovers.
+v5 code ready, benchmark blocked.
