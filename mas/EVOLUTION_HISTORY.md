@@ -93,3 +93,16 @@ v4 without retry is the most stable architecture.
 Architecture v4 (Dual-Pass + Per-Task Temp) is optimal. Performance variance is inherent to LLM API.
 
 Score history summary: best=0.8619, latest=0.8619, avg of last 5=0.7939
+
+## Iter 17: Score 0.8619 (v4, stable at best)
+- reasoning: 1.0000, code: 0.6800, research: 0.8750, planning: 1.0000, debugging: 1.0000, creative: 0.6000
+- Best stable architecture: v4 (Dual-Pass + Per-Task Temp)
+- v4 achieved 0.8619 at iter 13, 16, 17 - very stable
+- Weak spots: code (0.68) and creative (0.60)
+
+## v5 Design: Multi-Candidate Ensemble
+Architecture goal: Fix code (0.68) and creative (0.60) weak spots.
+- Code: 3-candidate ensemble at temp 0.3/0.5/0.8 + voter + self-revision for syntax
+- Creative: 3-agent ensemble (Creative, CreativeV2, CreativeV3) at temp 0.7/0.9/1.0 + ranker
+- Research: Cross-validation with Researcher + ResearcherV2 (dual perspective)
+- Keep dual-pass reasoning and debugging (both at 1.0000)
