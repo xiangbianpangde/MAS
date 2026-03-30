@@ -218,3 +218,9 @@ Next heartbeat will retry. If persistent, need human intervention.
 - Iter 33: 0.7667, Iter 34: 0.7143, Iter 35: 0.7571, Iter 36: 0.4667 (API 520 errors)
 - API returned 520 errors intermittently, causing null choices
 - Fixed null choices handling in MiniMaxClient.chat()
+
+## Iter 33-37 Summary (API instability period)
+- Iter 33: 0.7667, 34: 0.7143, 35: 0.7571, 36: 0.4667 (API failures), 37: 0.6857
+- Iter 36 had severe API issues causing 0.4667
+- API recovered around 15:12 UTC
+- Best remains: iter 25 = 0.8857
