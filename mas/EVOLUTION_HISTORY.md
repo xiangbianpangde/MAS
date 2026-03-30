@@ -164,3 +164,12 @@ Focus: Fix code (0.68) ONLY - keep everything else v4.
 - Add syntax validation + auto-fix for code (lighter than full ensemble)
 - Do NOT change reasoning, research, planning, debugging, creative
 - Single architectural change to isolate impact
+
+## API BLOCKED - 07:45 UTC
+All API endpoints returning 1004 auth error:
+- api.minimaxi.com (China): 1004 login fail
+- api.minimax.io (Global): 1004 login fail
+- api.minimax.com: DNS resolution failed
+
+API key may be fully expired/revoked. No test can run.
+Next heartbeat will retry. If persistent, need human intervention.
