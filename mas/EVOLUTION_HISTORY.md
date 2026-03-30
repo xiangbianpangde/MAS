@@ -173,3 +173,11 @@ All API endpoints returning 1004 auth error:
 
 API key may be fully expired/revoked. No test can run.
 Next heartbeat will retry. If persistent, need human intervention.
+
+## API Still Failing (1004) - 2026-03-30 08:45 UTC
+- All MiniMax API endpoints returning 1004 login fail
+- Same key worked for 17 iterations, now rejected
+- Possible: key revoked, expired, or rate-limited
+- Tried: Bearer <key>, api.<key>, different endpoints (/v1/chat/completions, /anthropic/v1/messages)
+- Tried refreshing OAuth token - same result
+- Status: BLOCKED
