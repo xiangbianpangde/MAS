@@ -181,3 +181,10 @@ Next heartbeat will retry. If persistent, need human intervention.
 - Tried: Bearer <key>, api.<key>, different endpoints (/v1/chat/completions, /anthropic/v1/messages)
 - Tried refreshing OAuth token - same result
 - Status: BLOCKED
+
+## Iter 21-22: Score 0.8381 (v6, stable)
+- Iter 21: 0.8381 (reasoning=0.80, code=0.68, research=1.00, planning=1.00, debugging=1.00, creative=0.60)
+- Iter 22: 0.8381 (identical pattern - v6 is stable)
+- v6 key insight: dual researcher (0.75→1.00) + execution sandbox, but code/creative unchanged
+- Architecture: Execution-verified code + dual researcher + single creative
+- Convergence: 3 consecutive iterations at 0.8381 (iter 21, 22) - stable baseline
