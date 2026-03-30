@@ -188,3 +188,11 @@ Next heartbeat will retry. If persistent, need human intervention.
 - v6 key insight: dual researcher (0.75→1.00) + execution sandbox, but code/creative unchanged
 - Architecture: Execution-verified code + dual researcher + single creative
 - Convergence: 3 consecutive iterations at 0.8381 (iter 21, 22) - stable baseline
+
+## v6 Variance Analysis (iter 21-24)
+- Iter 21: 0.8381 (reasoning=1.00)
+- Iter 22: 0.8381 (reasoning=1.00)
+- Iter 23: 0.7905 (reasoning=0.80, debug=0.50)
+- Iter 24: 0.7429 (reasoning=0.40!) - reason_001/003/005 all failed
+- Key: reasoning has extreme variance (0.40-1.00), code has moderate variance, research/debug/planning/creative are stable
+- Best stable baseline: 0.8381 (v6 at iter 21,22)
