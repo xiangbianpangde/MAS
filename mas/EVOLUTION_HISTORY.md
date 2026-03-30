@@ -202,3 +202,14 @@ Next heartbeat will retry. If persistent, need human intervention.
 - v6 architecture confirmed: dual researcher (research=1.00), execution sandbox
 - High variance confirmed: reasoning ranges 0.40-1.00 across iterations
 - Score ceiling: 0.8857 with current v6. Bottleneck: code(0.68) and creative(0.60)
+
+## Iter 25-30 Summary: High Variance Confirmed
+- Iter 25: 0.8857 (BEST - reasoning=1.00)
+- Iter 26: 0.7381 (creative=0.30, debug=0.50)
+- Iter 27: 0.7429 (reasoning=0.60, debug=0.50)
+- Iter 28: 0.7667 (reasoning=0.60, plan=0.83)
+- Iter 29: 0.8286 (reasoning=1.00, debug=0.50, creative=0.30)
+- Iter 30: 0.7905 (reasoning=0.80, debug=0.50)
+- v6 architecture is stable but score varies 0.74-0.89 due to LLM randomness
+- Research=1.00 is the only stable component
+- Bottleneck: code=0.68 (stable), creative/debug vary 0.30-0.60
