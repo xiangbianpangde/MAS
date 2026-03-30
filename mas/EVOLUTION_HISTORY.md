@@ -251,3 +251,9 @@ Next heartbeat will retry. If persistent, need human intervention.
 - Iter 48-53: API recovering, scores 0.55-0.84
 - Best in this batch: iter 52 = 0.8381
 - API confirmed stable again by iter 53
+
+## Iter 45-55 Summary (API recovery period)
+- API recovered around 16:30 UTC
+- Iter 52: 0.8381, Iter 53: 0.7429, Iter 54: 0.8571, Iter 55: 0.8381
+- Best remains: iter 25 = 0.8857
+- v6 architecture stable across all runs
