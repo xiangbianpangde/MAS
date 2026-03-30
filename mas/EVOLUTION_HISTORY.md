@@ -237,3 +237,11 @@ Next heartbeat will retry. If persistent, need human intervention.
 - Best: iter 25 = 0.8857, tied: iter 21, 22, 49 = 0.8381
 - API intermittent failures causing score drops during 15:00-17:00 UTC
 - v6 architecture: stable performer, high variance from LLM randomness
+
+## Iter 38-51 Summary (API instability period)
+- Iter 38: 0.6143 (API unstable, rapid fails)
+- Iter 39-43: various scores with API issues
+- Iter 44-47: API errors (1004 login fail periods)
+- Iter 49: 0.8381, Iter 50: 0.7905, Iter 51: 0.7714
+- Best remains: iter 25 = 0.8857
+- v6 architecture: stable, variance driven by LLM randomness
