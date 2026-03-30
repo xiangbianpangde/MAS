@@ -26,7 +26,13 @@ class MiniMaxClient:
             elapsed = time.time() - start
             resp.raise_for_status()
             data = resp.json()
-            return {"content": data["choices"][0]["message"]["content"], "usage": data.get("usage", {}), "elapsed": elapsed, "error": None}
+            choices = data.get("choices")
+            if choices and len(choices) > 0:
+                content = choices[0].get("message", {}).get("content", "")
+                return {"content": content, "usage": data.get("usage", {}), "elapsed": elapsed, "error": None}
+            else:
+                base_resp = data.get("base_resp", {})
+                return {"content": "", "usage": data.get("usage", {}), "elapsed": elapsed, "error": f"API error: {base_resp.get('status_msg', 'unknown')}"}
         except Exception as e:
             return {"content": "", "usage": {"total_tokens": 0}, "elapsed": time.time() - start, "error": str(e)}
 
