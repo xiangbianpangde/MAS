@@ -213,3 +213,8 @@ Next heartbeat will retry. If persistent, need human intervention.
 - v6 architecture is stable but score varies 0.74-0.89 due to LLM randomness
 - Research=1.00 is the only stable component
 - Bottleneck: code=0.68 (stable), creative/debug vary 0.30-0.60
+
+## Iter 33-36: API instability + low scores
+- Iter 33: 0.7667, Iter 34: 0.7143, Iter 35: 0.7571, Iter 36: 0.4667 (API 520 errors)
+- API returned 520 errors intermittently, causing null choices
+- Fixed null choices handling in MiniMaxClient.chat()
