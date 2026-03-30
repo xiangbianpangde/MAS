@@ -263,3 +263,10 @@ Next heartbeat will retry. If persistent, need human intervention.
 - v6 stable ceiling: 0.8857 (reasoning=1.00 + research=1.00 + plan/debug=1.00 + code=0.68 + creative=0.60)
 - Architecture bottleneck: code=0.68 and creative=0.60 are the only remaining weak points
 - v6 architecture: dual researcher, execution sandbox, single creative, single reasoner
+
+## Iter 44-57: API instability period
+- Iter 44-57 show low scores (0.46-0.68) due to API failures
+- API recovered by iter 55-57
+- Iter 56: 0.8857 (TIED BEST - reasoning=1.00, code=0.68, research=1.00, planning=1.00, debugging=1.00, creative=0.60)
+- Best remains: iter 25 = 0.8857 and iter 56 = 0.8857
+- v6 architecture: stable, high variance due to LLM randomness
