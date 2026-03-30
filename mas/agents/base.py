@@ -1,13 +1,12 @@
 """
-MAS Architecture v5: Multi-Candidate Ensemble + Self-Revision
-Key changes from v4:
-1. Multi-candidate generation for code (3 candidates at temp 0.3/0.5/0.8) → voter picks best
-2. Self-revision for code: after initial solution, agent self-checks and revises
-3. Creative ensemble: 3 candidates at temp 0.7/0.9/1.0 → evaluator-ranked
-4. Enhanced research with cross-validation (2 researchers, pick more comprehensive)
-5. Keep dual-pass reasoning and debugging (already perfect at 1.0)
+MAS Architecture v6: Execution-Verified Code + Stable Ensemble
+Key changes from v5:
+1. Code: execution-based verification instead of voting - run generated code, if error → self-revise
+2. Keep dual researcher (research: 0.75→1.00 in v5, proven to work)
+3. Creative: back to single agent (3-candidate ensemble didn't help)
+4. Keep dual-pass reasoning and debugging (already perfect at 1.0)
 """
-import os, json, time, requests, ast, re
+import os, json, time, requests, ast, re, subprocess, signal
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
 
@@ -85,16 +84,21 @@ OUTPUT FORMAT (MUST FOLLOW):
 The code must be syntactically correct and produce the correct output."""
 
 class CodeReviserAgent(Agent):
-    """v5 NEW: Revises code after self-verification"""
+    """v6: Revises code based on execution error feedback"""
     def system_prompt(self) -> str:
-        return """You are CodeReviser, expert at improving Python code.
+        return """You are CodeReviser, expert at fixing Python code.
 
-Given buggy or suboptimal code, you must:
-1. Identify issues in the code (if any)
-2. Provide an improved version in a ```python``` block
-3. Briefly explain the key improvement
+Given:
+1. The original problem
+2. Your previous code attempt
+3. An error message or incorrect output
 
-Be critical - if the code looks correct, say so."""
+You MUST:
+1. Analyze what went wrong
+2. Provide a corrected version in a ```python``` block
+3. Briefly explain the fix (1 sentence)
+
+Output ONLY the fixed function/class, nothing else."""
 
 class ResearcherAgent(Agent):
     def system_prompt(self) -> str:
@@ -102,7 +106,7 @@ class ResearcherAgent(Agent):
 Be concise. Use bullet points. Cover all key aspects. Target 100-200 words."""
 
 class ResearcherAgentV2(Agent):
-    """v5 NEW: Alternative researcher with different angle"""
+    """v5: Alternative researcher with different angle"""
     def system_prompt(self) -> str:
         return """You are ResearcherV2, expert in thorough research and edge cases.
 
@@ -175,59 +179,60 @@ Your writing must:
 If asked for humor: actually be funny, not just "this is funny"
 If asked for a story: create a narrative with tension and resolution"""
 
-class CreativeAgentV2(Agent):
-    """v5 NEW: Alternative creative with different style"""
-    def system_prompt(self) -> str:
-        return """You are CreativeV2, bold and unconventional writer.
-
-Your approach:
-1. Subvert expectations - take the road least expected
-2. Use concrete sensory details over abstract statements
-3. Vary sentence structure deliberately
-4. End with impact - a twist, a lingering image, or a punch
-
-Think: what would make a human stop and re-read?"""
-
-class CreativeAgentV3(Agent):
-    """v5 NEW: Third creative variant for maximum diversity"""
-    def system_prompt(self) -> str:
-        return """You are CreativeV3, literary and introspective writer.
-
-You specialize in:
-1. Precise word choice - every word earns its place
-2. Emotional authenticity over dramatic exaggeration
-3. Scene-based writing with natural dialogue
-4. Open-ended endings that resonate
-
-Write as if crafting a short literary piece, not content."""
-
 class VerifierAgent(Agent):
     def system_prompt(self) -> str:
         return """You are Verifier, expert code validator.
 Execute code mentally or explain why it cannot be verified. Report PASS/FAIL."""
 
-# === v5 Code Voter ===
-class CodeVoterAgent(Agent):
-    """v5: Selects the best code from multiple candidates"""
-    def system_prompt(self) -> str:
-        return """You are CodeVoter, expert at selecting the best code solution.
+# === v6 Sandbox Executor ===
+class SandboxExecutor:
+    """v6: Safely execute Python code in a subprocess with timeout"""
+    
+    @staticmethod
+    def execute(code: str, timeout: int = 10) -> Tuple[bool, str, str]:
+        """
+        Execute Python code in sandbox.
+        Returns: (success: bool, stdout: str, stderr: str)
+        """
+        # Wrap code to capture output and add safety
+        wrapped_code = f"""
+import sys
+import io
+import traceback
+sys.stdout = io.StringIO()
+sys.stderr = io.StringIO()
+try:
+{chr(10).join('    ' + line for line in code.split(chr(10)))}
+    output = sys.stdout.getvalue()
+    error = sys.stderr.getvalue()
+    print(output if output else 'EXEC_OK')
+except SystemExit:
+    pass
+except Exception:
+    traceback.print_exc()
+"""
+        try:
+            result = subprocess.run(
+                ["python3", "-c", wrapped_code],
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+            stdout = result.stdout.strip()
+            stderr = result.stderr.strip()
+            
+            # Check for syntax/import errors
+            if result.returncode != 0 or "Error" in stderr or "Traceback" in stderr:
+                return False, stdout, stderr
+            return True, stdout, stderr
+        except subprocess.TimeoutExpired:
+            return False, "", "Execution timeout"
+        except Exception as e:
+            return False, "", str(e)
 
-Given a programming problem and multiple code solutions, select the BEST one.
-Criteria: correctness, clarity, efficiency, edge case handling.
-Output ONLY the letter (A, B, or C) of your choice, nothing else."""
-
-class CreativeRankerAgent(Agent):
-    """v5: Ranks creative outputs"""
-    def system_prompt(self) -> str:
-        return """You are CreativeRanker, expert literary judge.
-
-Given a creative task and multiple outputs, rank them 1-3.
-Criteria: creativity, execution, emotional impact, originality.
-Output ONLY the ranking as "1:[letter] 2:[letter] 3:[letter]", nothing else."""
-
-# === v5 Orchestrator ===
-class OrchestratorV5:
-    """v5: Multi-candidate ensemble + self-revision for code/creative"""
+# === v6 Orchestrator ===
+class OrchestratorV6:
+    """v6: Execution-verified code + dual researcher (proven from v5)"""
     def __init__(self, client: MiniMaxClient):
         self.client = client
         self.reasoner = ReasonerAgent(client, "Reasoner", "logical reasoning")
@@ -239,11 +244,8 @@ class OrchestratorV5:
         self.planner = PlannerAgent(client, "Planner", "planning")
         self.debugger = DebuggerAgent(client, "Debugger", "debugging")
         self.creative = CreativeAgent(client, "Creative", "creative")
-        self.creative_v2 = CreativeAgentV2(client, "CreativeV2", "creative")
-        self.creative_v3 = CreativeAgentV3(client, "CreativeV3", "creative")
-        self.code_voter = CodeVoterAgent(client, "CodeVoter", "code evaluation")
-        self.creative_ranker = CreativeRankerAgent(client, "CreativeRanker", "creative evaluation")
         self.verifier = VerifierAgent(client, "Verifier", "verification")
+        self.sandbox = SandboxExecutor()
         
         self.specialists = {
             "reasoning": self.reasoner, "code": self.coder, "research": self.researcher,
@@ -255,68 +257,9 @@ class OrchestratorV5:
         return self.specialists.get(task.get("category", "reasoning"), self.reasoner)
     
     def get_temperature(self, category: str) -> float:
-        if category == "code":
-            return 0.5
-        elif category == "creative":
-            return 0.9
-        elif category == "debugging":
+        if category in ("code", "debugging"):
             return 0.3
         return 0.7
-    
-    def _extract_code_candidates(self, responses: List[str]) -> List[Tuple[str, str]]:
-        """Extract code from responses, return list of (response_text, code)"""
-        results = []
-        for r in responses:
-            code = self.coder.extract_code(r)
-            results.append((r, code))
-        return results
-    
-    def _vote_code(self, task: str, candidates: List[Tuple[str, str]]) -> str:
-        """Vote on best code candidate"""
-        prompt = f"Problem: {task}\n\n"
-        labels = ["A", "B", "C"]
-        for i, (resp, code) in enumerate(candidates):
-            prompt += f"\n=== Solution {labels[i]} ===\n{resp}\n"
-        prompt += "\nSelect the BEST solution (A, B, or C):"
-        
-        result = self.code_voter.think(prompt, temperature=0.0)
-        choice = result["response"].strip()[0].upper() if result["response"].strip() else "A"
-        if choice not in "ABC":
-            choice = "A"
-        
-        idx = ord(choice) - ord("A")
-        return candidates[idx][0]
-    
-    def _rank_creative(self, task: str, candidates: List[str]) -> List[str]:
-        """Rank creative candidates, return in order"""
-        prompt = f"Task: {task}\n\n"
-        labels = ["A", "B", "C"]
-        for i, c in enumerate(candidates):
-            prompt += f"\n=== Output {labels[i]} ===\n{c}\n"
-        prompt += "\nRank these outputs 1-3 (1=best):"
-        
-        result = self.creative_ranker.think(prompt, temperature=0.0)
-        
-        # Parse ranking
-        ranking = []
-        resp = result["response"].upper()
-        for label in "ABC":
-            if label in resp:
-                pos = resp.index(label)
-                # Find the position number before this label
-                segment = resp[max(0, pos-2):pos]
-                nums = re.findall(r'[123]', segment)
-                if nums:
-                    ranking.append((int(nums[-1]), label))
-                else:
-                    ranking.append((3, label))
-        
-        if not ranking:
-            return candidates
-        
-        ranking.sort()
-        label_to_candidate = {labels[i]: candidates[i] for i in range(len(candidates))}
-        return [label_to_candidate[r[1]] for r in ranking]
     
     def solve(self, task: Dict) -> Dict:
         task_id = task["id"]
@@ -327,7 +270,7 @@ class OrchestratorV5:
         total_elapsed = 0
         total_tokens = 0
         
-        # === REASONING: dual-pass (already perfect at 1.0, keep as-is) ===
+        # === REASONING: dual-pass (perfect 1.0 in v4-v5) ===
         if category == "reasoning":
             agent = self.reasoner
             temp = self.get_temperature(category)
@@ -344,53 +287,45 @@ class OrchestratorV5:
                 total_elapsed += verifier_result["elapsed"]
                 total_tokens += verifier_result.get("tokens", 0)
         
-        # === CODE: multi-candidate + self-revision ===
+        # === CODE: generate → execute → self-revise on error ===
         elif category == "code":
-            # Generate 3 candidates at different temperatures
-            temps = [0.3, 0.5, 0.8]
-            candidates = []
-            candidate_codes = []
-            for t in temps:
-                res = self.coder.think(task["prompt"], temperature=t, max_tokens=3072)
-                candidates.append(res["response"])
-                candidate_codes.append((res["response"], self.coder.extract_code(res["response"])))
-                total_elapsed += res["elapsed"]
-                total_tokens += res.get("tokens", 0)
+            # Pass 1: Generate code
+            gen_result = self.coder.think(task["prompt"], temperature=0.5, max_tokens=3072)
+            code = self.coder.extract_code(gen_result["response"])
+            total_elapsed += gen_result["elapsed"]
+            total_tokens += gen_result.get("tokens", 0)
             
-            # Vote on best candidate
-            best_response = self._vote_code(task["prompt"], candidate_codes)
+            # Pass 2: Execute to verify
+            success, stdout, stderr = self.sandbox.execute(code, timeout=10)
             
-            # Self-revision pass
-            code = self.coder.extract_code(best_response)
-            try:
-                ast.parse(code)
-                syntax_ok = True
-            except:
-                syntax_ok = False
-            
-            if not syntax_ok:
-                # Try to fix syntax errors
-                revise_res = self.code_reviser.think(
-                    f"The following code has syntax errors. Please fix it.\n\nCode:\n{code}",
+            if not success:
+                # Get expected output hint from task (if available)
+                task_hint = task.get("expected_hint", "Make the code work correctly.")
+                
+                revise_result = self.code_reviser.think(
+                    f"Problem: {task['prompt']}\n\nYour code:\n{code}\n\nError: {stderr or 'Execution failed'}\n\nPlease fix the code.",
                     temperature=0.2, max_tokens=3072
                 )
-                best_response = revise_res["response"]
-                total_elapsed += revise_res["elapsed"]
-                total_tokens += revise_res.get("tokens", 0)
+                revised_code = self.coder.extract_code(revise_result["response"])
+                
+                # Try revised code once more
+                success2, stdout2, stderr2 = self.sandbox.execute(revised_code, timeout=10)
+                
+                if success2:
+                    gen_result["response"] = revise_result["response"]
+                    total_elapsed += revise_result["elapsed"]
+                    total_tokens += revise_result.get("tokens", 0)
+                else:
+                    # Keep original response but mark execution failure
+                    gen_result["exec_error"] = stderr or stderr2 or "unknown"
             
-            result = {
-                "response": best_response,
-                "elapsed": total_elapsed,
-                "tokens": total_tokens
-            }
+            result = gen_result
         
-        # === RESEARCH: cross-validate with two researchers ===
+        # === RESEARCH: dual researcher cross-validation (0.75→1.00 in v5, proven) ===
         elif category == "research":
-            # Run both researchers in parallel concept
             r1 = self.researcher.think(task["prompt"], temperature=0.5)
             r2 = self.researcher_v2.think(task["prompt"], temperature=0.5)
             
-            # Combine both responses
             combined = f"【Main Research】\n{r1['response']}\n\n【Alternative View】\n{r2['response']}"
             result = {
                 "response": combined,
@@ -400,37 +335,25 @@ class OrchestratorV5:
             total_elapsed = result["elapsed"]
             total_tokens = result.get("tokens", 0)
         
-        # === PLANNING: keep as-is (already perfect) ===
+        # === PLANNING: keep as-is (perfect 1.0) ===
         elif category == "planning":
             agent = self.planner
             result = agent.think(task["prompt"], temperature=0.7)
             total_elapsed = result["elapsed"]
             total_tokens = result.get("tokens", 0)
         
-        # === DEBUGGING: keep dual-pass (already perfect) ===
+        # === DEBUGGING: keep dual-pass (perfect 1.0) ===
         elif category == "debugging":
             result = self.debugger.think(task["prompt"], temperature=0.3)
             total_elapsed = result["elapsed"]
             total_tokens = result.get("tokens", 0)
         
-        # === CREATIVE: multi-candidate ensemble ===
+        # === CREATIVE: single agent (3-candidate didn't help in v5) ===
         elif category == "creative":
-            agents = [self.creative, self.creative_v2, self.creative_v3]
-            temps = [0.7, 0.9, 1.0]
-            candidates = []
-            for agent, t in zip(agents, temps):
-                res = agent.think(task["prompt"], temperature=t, max_tokens=2048)
-                candidates.append(res["response"])
-                total_elapsed += res["elapsed"]
-                total_tokens += res.get("tokens", 0)
-            
-            # Rank and select best
-            ranked = self._rank_creative(task["prompt"], candidates)
-            result = {
-                "response": ranked[0],  # Best ranked
-                "elapsed": total_elapsed,
-                "tokens": total_tokens
-            }
+            agent = self.creative
+            result = agent.think(task["prompt"], temperature=0.8, max_tokens=2048)
+            total_elapsed = result["elapsed"]
+            total_tokens = result.get("tokens", 0)
         
         else:
             agent = self.route(task)
@@ -444,20 +367,20 @@ class OrchestratorV5:
         self.stats["total_time"] += elapsed
         
         return {
-            "task_id": task_id, "category": category, "agent": "OrchestratorV5",
+            "task_id": task_id, "category": category, "agent": "OrchestratorV6",
             "response": result.get("response", ""), "elapsed": elapsed, "tokens": total_tokens,
             "error": result.get("error")
         }
 
-def run_single_task(orchestrator: OrchestratorV5, task: Dict) -> Dict:
+def run_single_task(orchestrator: OrchestratorV6, task: Dict) -> Dict:
     return orchestrator.solve(task)
 
-def run_benchmark(orchestrator: OrchestratorV5, tasks: List[Dict], output_path: str) -> Dict:
+def run_benchmark(orchestrator: OrchestratorV6, tasks: List[Dict], output_path: str) -> Dict:
     from mas.benchmarks.evaluator import Evaluator
     evaluator = Evaluator()
     
     print(f"\n{'='*60}")
-    print(f"MAS v5 Benchmark - {len(tasks)} tasks (Multi-Candidate Ensemble)")
+    print(f"MAS v6 Benchmark - {len(tasks)} tasks (Execution-Verified Code)")
     print(f"{'='*60}\n")
     
     for i, task in enumerate(tasks):
@@ -470,10 +393,10 @@ def run_benchmark(orchestrator: OrchestratorV5, tasks: List[Dict], output_path: 
     summary = evaluator.get_summary()
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:
-        json.dump({"timestamp": datetime.now().isoformat(), "architecture": "v5_ensemble", "summary": summary}, f, indent=2, ensure_ascii=False)
+        json.dump({"timestamp": datetime.now().isoformat(), "architecture": "v6_exec_verified", "summary": summary}, f, indent=2, ensure_ascii=False)
     
     print(f"\n{'='*60}")
-    print(f"BENCHMARK COMPLETE - v5")
+    print(f"BENCHMARK COMPLETE - v6")
     print(f"Total Score: {summary['avg_score']:.4f}")
     print(f"Total Time: {summary['total_time']:.1f}s")
     for cat, data in summary.get("category_summary", {}).items():
@@ -481,4 +404,4 @@ def run_benchmark(orchestrator: OrchestratorV5, tasks: List[Dict], output_path: 
     return summary
 
 # Alias
-Orchestrator = OrchestratorV5
+Orchestrator = OrchestratorV6
