@@ -298,3 +298,18 @@ Next heartbeat will retry. If persistent, need human intervention.
 - BREAKTHROUGH: code improved from 0.68 to 0.76!
 - Architecture: v6 (Execution-Verified Code + Dual Researcher)
 - Previous best: 0.8857 (iter 25, 56, 59)
+
+## Iter 75: API Key Issue Fixed (Restart)
+- Iter 75 failed initially with "login fail: API secret key" error
+- Root cause: MINIMAX_API_KEY was a shell variable but not exported
+- Subprocesses (Python scripts) couldn't access it
+- Fix: exported MINIMAX_API_KEY before running benchmark
+- Benchmark restarted at ~20:57 UTC
+- Previous best: iter 65 = 0.9048
+- System recovering from API auth issue
+
+## 24-Hour Monitor Timeout (Stale Monitor Killed)
+- Monitor process ran for 33+ hours (exceeded 24h limit)
+- Killed at 04:57 CST (20:57 UTC)
+- No actual test deadlock - tests were completing normally
+- Test iterations 65-74 completed successfully with varying scores
