@@ -245,3 +245,9 @@ Next heartbeat will retry. If persistent, need human intervention.
 - Iter 49: 0.8381, Iter 50: 0.7905, Iter 51: 0.7714
 - Best remains: iter 25 = 0.8857
 - v6 architecture: stable, variance driven by LLM randomness
+
+## Iter 44-53: API intermittent failures, recovering
+- Iter 44-47: API 1004 errors (key unstable)
+- Iter 48-53: API recovering, scores 0.55-0.84
+- Best in this batch: iter 52 = 0.8381
+- API confirmed stable again by iter 53
