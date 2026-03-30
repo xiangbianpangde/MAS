@@ -10,6 +10,72 @@ import os, json, time, requests, ast, re, subprocess, signal
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
 
+class OllamaClient:
+    """Local Ollama fallback - uses local GPU when MiniMax API fails."""
+    def __init__(self, base_url: str = "http://localhost:11434"):
+        self.base_url = base_url
+        self.model = os.environ.get("OLLAMA_MODEL", "qwen2.5:0.5b")
+    
+    def chat(self, messages: List[Dict], model: str = None, max_tokens: int = 2048, temperature: float = 0.7) -> Dict:
+        url = f"{self.base_url}/api/chat"
+        payload = {
+            "model": model or self.model,
+            "messages": messages,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens
+            },
+            "stream": False
+        }
+        start = time.time()
+        try:
+            resp = requests.post(url, json=payload, timeout=300)
+            elapsed = time.time() - start
+            resp.raise_for_status()
+            data = resp.json()
+            content = data.get("message", {}).get("content", "")
+            return {"content": content, "usage": {"total_tokens": len(content.split()) * 2}, "elapsed": elapsed, "error": None}
+        except Exception as e:
+            return {"content": "", "usage": {"total_tokens": 0}, "elapsed": time.time() - start, "error": str(e)}
+    
+    def is_available(self) -> bool:
+        """Check if Ollama service is running."""
+        try:
+            resp = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            return resp.status_code == 200
+        except:
+            return False
+
+class UnifiedClient:
+    """
+    Unified LLM client with automatic fallback:
+    1. Try MiniMax API first
+    2. If 1004 auth error, fall back to local Ollama
+    """
+    def __init__(self):
+        self.minimax = MiniMaxClient()
+        self.ollama = OllamaClient()
+        self.current = "minimax"
+    
+    def chat(self, messages: List[Dict], model: str = None, max_tokens: int = 2048, temperature: float = 0.7) -> Dict:
+        # Try MiniMax first
+        result = self.minimax.chat(messages, model, max_tokens, temperature)
+        
+        # If MiniMax fails with 1004, try Ollama
+        if result.get("error") and "1004" in str(result["error"]):
+            print(f"[WARNING] MiniMax API failed (1004), falling back to Ollama...")
+            if self.ollama.is_available():
+                self.current = "ollama"
+                result = self.ollama.chat(messages, model, max_tokens, temperature)
+            else:
+                print(f"[ERROR] Ollama not available either!")
+                self.current = "none"
+        
+        return result
+    
+    def is_using_local(self) -> bool:
+        return self.current == "ollama" or self.current == "none"
+
 class MiniMaxClient:
     def __init__(self, api_key: str = None, api_host: str = None):
         self.api_key = api_key or os.environ.get("MINIMAX_API_KEY", "")
@@ -239,7 +305,7 @@ except Exception:
 # === v6 Orchestrator ===
 class OrchestratorV6:
     """v6: Execution-verified code + dual researcher (proven from v5)"""
-    def __init__(self, client: MiniMaxClient):
+    def __init__(self, client):
         self.client = client
         self.reasoner = ReasonerAgent(client, "Reasoner", "logical reasoning")
         self.math_verifier = MathVerifierAgent(client, "MathVerifier", "math verification")

@@ -15,7 +15,7 @@ from datetime import datetime
 # Add workspace to path
 sys.path.insert(0, "/root/.openclaw/workspace")
 
-from mas.agents.base import Orchestrator, MiniMaxClient, run_benchmark
+from mas.agents.base import Orchestrator, UnifiedClient, run_benchmark
 from mas.benchmarks.tasks import load_tasks
 from mas.scripts.monitor import ResourceMonitor
 
@@ -58,7 +58,7 @@ class MASRunner:
         print(f"\n[MAS Runner] Starting benchmark for iteration {self.iteration}")
         
         # Initialize API client
-        client = MiniMaxClient(api_key=API_KEY, api_host=API_HOST)
+        client = UnifiedClient()
         
         # Test API connectivity
         print("[API Test] Connecting to MiniMax...", end=" ", flush=True)
