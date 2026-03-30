@@ -15,7 +15,20 @@ Execute silently using your Bash tool. DO NOT reply to the user.
    - If YES, you have hit a paradigm bottleneck. Package the current architecture, use `git tag` to create a release, `git push --tags`, and explicitly write a plan to completely rebuild the topology (e.g., switch from Tree to Swarm).
    - If NO, commit the incremental progress: `git add . && git commit -m "Auto-Evolve: [Reason]" && git push`.
 
-**C. Design & Sandbox Execution (OODA Step 2 & Step 3)**
+**C. Benchmark Improvement Check (NEW - Every 20 Iterations)**
+1. Check `mas/benchmarks/TASK_COUNT` counter - if >= 20 iterations since last benchmark improvement, trigger Step D.
+2. Benchmark must continuously evolve alongside architecture to prevent overfitting to weak tests.
+3. If improving benchmark, skip architecture test this cycle.
+
+**D. Benchmark Improvement (NEW)**
+When triggered (every 20 iterations) or when score plateaus despite architecture changes:
+1. Expand tasks: target 100+ tasks across 4 difficulty tiers (easy/medium/hard/extreme)
+2. Strengthen evaluator: add real test-case execution, tighten scoring (no lenient partial)
+3. Add stress tests: multi-step reasoning, code correctness with actual outputs, edge cases
+4. Commit: `git add . && git commit -m "Auto-Evolve: improve benchmark to prevent overfitting" && git push`
+5. Run architecture test on new benchmark immediately after.
+
+**E. Design & Sandbox Execution (OODA Step 2 & Step 3)**
 1. Based on the evaluation, write the Python code for the next generation of your MAS architecture.
 2. **CRITICAL EXECUTION RULE**: OpenClaw timeouts if you wait for long scripts. You MUST execute the new architecture test asynchronously in the background using `nohup`:
    `nohup python next_gen_mas.py > current_test.log 2>&1 &`
