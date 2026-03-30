@@ -154,11 +154,19 @@ class Evaluator:
         task_id = task["id"]
         test_cases = task.get("test_cases", [])
         
-        # Extract code blocks
-        code_blocks = re.findall(r'```(?:\w+)?\n(.*?)```', response, re.DOTALL)
+        # Extract code blocks - with error handling for malformed regex
+        code_blocks = []
+        try:
+            code_blocks = re.findall(r'```(?:\w+)?\n(.*?)```', response, re.DOTALL)
+        except re.error:
+            pass
+        
         if not code_blocks:
             # Try to find function definition directly
-            code_blocks = re.findall(r'(def \w+.*?(?=\n(?:def |class |$))', response, re.DOTALL)
+            try:
+                code_blocks = re.findall(r'(def \w+.*?(?=\n(?:def |class |$))', response, re.DOTALL)
+            except re.error:
+                pass
         
         if not code_blocks:
             return scoring.get("wrong", 0.0), "No code block found"
