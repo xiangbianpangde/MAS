@@ -196,3 +196,9 @@ Next heartbeat will retry. If persistent, need human intervention.
 - Iter 24: 0.7429 (reasoning=0.40!) - reason_001/003/005 all failed
 - Key: reasoning has extreme variance (0.40-1.00), code has moderate variance, research/debug/planning/creative are stable
 - Best stable baseline: 0.8381 (v6 at iter 21,22)
+
+## Iter 25: NEW BEST 0.8857!
+- reasoning=1.00 (5/5 perfect!), code=0.68, research=1.00, planning=1.00, debugging=1.00, creative=0.60
+- v6 architecture confirmed: dual researcher (research=1.00), execution sandbox
+- High variance confirmed: reasoning ranges 0.40-1.00 across iterations
+- Score ceiling: 0.8857 with current v6. Bottleneck: code(0.68) and creative(0.60)
