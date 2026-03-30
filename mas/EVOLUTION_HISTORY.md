@@ -231,3 +231,9 @@ Next heartbeat will retry. If persistent, need human intervention.
 - Iter 40: 0.5857 (more API errors)
 - Pattern: tasks failing with Time < 1s = API error / empty response
 - Best remains: iter 25 = 0.8857
+
+## Iter 45-49 Summary
+- Iter 45: 0.6095 (API unstable), 46: 0.681, 47: 0.719, 48: 0.7905, 49: 0.8381
+- Best: iter 25 = 0.8857, tied: iter 21, 22, 49 = 0.8381
+- API intermittent failures causing score drops during 15:00-17:00 UTC
+- v6 architecture: stable performer, high variance from LLM randomness
