@@ -224,3 +224,10 @@ Next heartbeat will retry. If persistent, need human intervention.
 - Iter 36 had severe API issues causing 0.4667
 - API recovered around 15:12 UTC
 - Best remains: iter 25 = 0.8857
+
+## Iter 38-40: API Instability Period
+- Iter 38: 0.6143 (API errors caused fast 0.00 failures)
+- Iter 39: 0.7333 (partial recovery)
+- Iter 40: 0.5857 (more API errors)
+- Pattern: tasks failing with Time < 1s = API error / empty response
+- Best remains: iter 25 = 0.8857
