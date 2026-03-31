@@ -15,7 +15,7 @@ from datetime import datetime
 # Add workspace to path
 sys.path.insert(0, "/root/.openclaw/workspace")
 
-from mas.agents.base import Orchestrator, UnifiedClient, run_benchmark
+from mas.agents.base_v7_entry import Orchestrator, UnifiedClient, run_benchmark
 from mas.benchmarks.tasks import load_tasks
 from mas.scripts.monitor import ResourceMonitor
 
