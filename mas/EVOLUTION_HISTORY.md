@@ -328,3 +328,9 @@ Next heartbeat will retry. If persistent, need human intervention.
 - **v6 vs v7**: v6 clearly better (0.6952 vs 0.6324). Reflection was disastrous.
 - **Trend**: Overall downward from peak 0.9048 (iter 65) - now -23% at iter 77
 - **Next**: Run iter 78 with v6 to check if current architecture is stable or declining
+
+## v8 Design Notes (iter 82+)
+- **Root Cause of Regression**: Benchmark upgraded to v2 (strict scoring) after iter 65. Architecture unchanged.
+- **v8 Approach**: Keyword-aware research agent. ResearcherV3 gets explicit key terms injected.
+- **v8 Changes**: Only 1 new agent class (ResearcherV3), 3-researcher approach instead of 2.
+- **Everything else**: Identical to v6 (no reflection, no synthesis - proven to hurt)
