@@ -320,3 +320,11 @@ Next heartbeat will retry. If persistent, need human intervention.
 - **Root Cause**: Universal reflection step (ReflectorAgent) is HARMFUL. It second-guesses good responses and introduces noise.
 - **Action**: IMMEDIATELY REVERT to v6 (base.py). Reflection hurts more than helps.
 - **Lesson**: Adding a "self-critique" reflection layer backfires. The model second-guesses itself into worse answers.
+
+## Iteration 77 (v6, after v7 revert) - Score 0.6952
+- **Score: 0.6952** (better than v7's 0.6324, worse than iter 75's 0.7229)
+- **Breakdown**: reasoning=0.7241, code=0.7857, research=0.4412, planning=0.7333, debugging=0.6667
+- **Analysis**: High run-to-run variance. Research still weak. Code improved.
+- **v6 vs v7**: v6 clearly better (0.6952 vs 0.6324). Reflection was disastrous.
+- **Trend**: Overall downward from peak 0.9048 (iter 65) - now -23% at iter 77
+- **Next**: Run iter 78 with v6 to check if current architecture is stable or declining
