@@ -334,3 +334,12 @@ Next heartbeat will retry. If persistent, need human intervention.
 - **v8 Approach**: Keyword-aware research agent. ResearcherV3 gets explicit key terms injected.
 - **v8 Changes**: Only 1 new agent class (ResearcherV3), 3-researcher approach instead of 2.
 - **Everything else**: Identical to v6 (no reflection, no synthesis - proven to hurt)
+
+## Iteration 86-87 Notes (2026-03-31)
+- Iter 86: 0.4952 - CATASTROPHIC. All categories collapsed (0.48-0.67 range)
+  - Root cause: Likely MiniMax API degradation. Many tasks had 0.5s response times.
+  - Tasks like easy_r_001 (1+1=?) scored 0.00 - model returning invalid answers
+  - API had 520 error on first attempt, then degraded service on retry
+- Iter 87: started fresh after 86 crash
+- v8 signal: when API healthy, scores 0.73-0.75 (research improved from 0.38 to 0.42-0.52)
+- v8 is ~+2.4% better than v6 baseline on research tasks when API is stable
