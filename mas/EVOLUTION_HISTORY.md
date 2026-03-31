@@ -313,3 +313,10 @@ Next heartbeat will retry. If persistent, need human intervention.
 - Killed at 04:57 CST (20:57 UTC)
 - No actual test deadlock - tests were completing normally
 - Test iterations 65-74 completed successfully with varying scores
+
+## Iteration 76 (v7) - CRITICAL REGRESSION
+- **Score: 0.6324** (DOWN 12.5% from 0.7229 in iter 75!)
+- **All categories degraded**: reasoning 0.65, code 0.74, research 0.32, debugging 0.44
+- **Root Cause**: Universal reflection step (ReflectorAgent) is HARMFUL. It second-guesses good responses and introduces noise.
+- **Action**: IMMEDIATELY REVERT to v6 (base.py). Reflection hurts more than helps.
+- **Lesson**: Adding a "self-critique" reflection layer backfires. The model second-guesses itself into worse answers.
